@@ -1,0 +1,78 @@
+---
+- name: Playbook 1 for Catalyst 9K in Devnet Sandbox
+  # CONNECTION -> can be CLI / NETCONF / RESTCONF / LOCAL
+  # https://docs.ansible.com/ansible/latest/network/user_guide/platform_index.html#settings-by-platform
+  connection: network_cli
+  hosts: switches
+  vars:
+    # ansible_network_os -> should be part of the device variables in ./host_vars or ./group_vars
+    # here is declared just for testing
+    ansible_network_os: cisco.ios.ios
+    
+    # this variable is just used to demonstrate loops and filters later on 
+    ifc_to_change:
+      - GigabitEthernet1/0/14
+      - GigabitEthernet1/0/15
+      - GigabitEthernet1/0/16
+
+  tasks:
+    - name: Configure VLAN 10 - 20 - 30
+      cisco.ios.ios_vlans:
+        config:
+          - name: VLAN--10-DATA
+            vlan_id: 10
+            state: active
+            shutdown: disabled
+          - name: VLAN--20-DATA
+            vlan_id: 20
+            state: active
+            shutdown: disabled
+          - name: VLAN--30-DATA
+            vlan_id: 30
+            state: active
+            shutdown: disabled
+        state: merged
+
+    # here we are using the ifc_to_change LIST elements to enumerate the
+    # interfaces to apply the config to
+    # register -> allows to save the output of ansible commands into a variable
+    # and we will use this to parse the outcome and print only the changed devices
+    - name: Configure first interfaces 11/12/13
+      cisco.ios.ios_l2_interfaces:
+        config:
+          - name: "{{ ifc_to_change [0] }}"
+            mode: access
+            access:
+              vlan: 10
+          - name: "{{ ifc_to_change [1] }}"
+            mode: access
+            access:
+              vlan: 20
+          - name: "{{ ifc_to_change [2] }}"
+            mode: access
+            access:
+              vlan: 30
+        state: merged
+      register: interface_output
+
+    - name: Output interface status (BEFORE)
+      debug:
+        # | -> Apply a FILTER to the list for manipulation
+        # selectattr -> extract elements from a LIST based on each list element attribute
+        # item -> NOTE that when used between quotes "" is not necessary to REquote variables
+        # Outcome is to filter the "before" portion of the interface config output and show
+        # only elements that matches the interfaces we configured
+        msg: "{{ interface_output['before'] | selectattr('name','match',item) }}"
+      loop: "{{ ifc_to_change }}"
+
+    - name: Output interface status (AFTER)
+      debug:
+        msg: "{{ interface_output['after'] | selectattr('name','match',item) }}"
+      loop: "{{ ifc_to_change }}"
+      # WHEN -> if the configuration is changed on Cisco device then the "interface_output" 
+      # variable will contain also another list [after] containing the configuration after
+      # changes are applied
+      # With this CONDITIONAL KEYWORD we check if "after" is an element of the interface_output
+      # variable and if YES the debug message is shown
+      when: '"after" in interface_output'
+...
