@@ -37,7 +37,7 @@
     # interfaces to apply the config to
     # register -> allows to save the output of ansible commands into a variable
     # and we will use this to parse the outcome and print only the changed devices
-    - name: Configure first interfaces 11/12/13
+    - name: Configure first interfaces
       cisco.ios.ios_l2_interfaces:
         config:
           - name: "{{ ifc_to_change [0] }}"
